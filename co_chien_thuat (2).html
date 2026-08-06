@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cờ Chiến Thuật — Bàn cờ 10×10</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- Firebase (chế độ chơi Trực tuyến) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root {
+  --bg: #0c0e0a;
+  --panel: #161911;
+  --panel-2: #1e2317;
+  --border: #333a27;
+  --border-soft: #262c1c;
+  --text: #eae4d1;
+  --text-dim: #98a084;
+  --text-faint: #6b7259;
+  --land: #c8ba87;
+  --land-line: #b3a473;
+  --land-light: #d1c493;
+  --land-dark: #bbac7c;
+  --water: #2d5a63;
+  --water-line: #244850;
+  --accent: #dc9a34;
+  --accent-soft: rgba(220, 154, 52, 0.28);
+  --danger: #c1452c;
+  --danger-soft: rgba(193, 69, 44, 0.3);
+  --stun: #7d5fb0;
+  --stun-soft: rgba(125, 95, 176, 0.35);
+  --lastmove: #3fa34d;
+  --lastmove-soft: rgba(63, 163, 77, 0.45);
+  --black-bg: #262a20;
+  --black-fg: #f0ead4;
+  --white-bg: #e8ddb8;
+  --white-fg: #23271b;
+  --radius: 10px;
+  --font-display: "Oswald", "Arial Narrow", sans-serif;
+  --font-body: "Be Vietnam Pro", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+body {
+  background-image:
+    linear-gradient(var(--border-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+  background-size: 34px 34px;
+  background-attachment: fixed;
+  background-color: var(--bg);
+}
+
+.app {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 16px 40px;
+}
+
+/* ---------- Header ---------- */
+.topbar {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  padding: 22px 24px;
+  margin-bottom: 18px;
+}
+
+.radar-sweep {
+  position: absolute;
+  top: 50%;
+  right: 36px;
+  width: 92px;
+  height: 92px;
+  margin-top: -46px;
+  border-radius: 50%;
+  border: 1px solid var(--border-soft);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.radar-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--accent-soft), transparent 32%);
+  animation: sweep 4.5s linear infinite;
+}
+.radar-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 34%;
+  border-radius: 50%;
+  border: 1px solid var(--border-soft);
+}
+@keyframes sweep { to { transform: rotate(360deg); } }
+
+.title-block h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(26px, 4.4vw, 38px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--text);
+}
+.title-block .subtitle {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  margin: 6px 0 0;
+  text-transform: uppercase;
+}
+
+/* ---------- Layout ---------- */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+.board-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.board-frame {
+  display: inline-grid;
+  grid-template-columns: 22px 1fr;
+  grid-template-rows: 20px 1fr;
+  gap: 4px;
+  width: 100%;
+  max-width: 620px;
+}
+
+.col-labels {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+}
+.col-labels span, .row-labels span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.row-labels {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: repeat(10, 1fr);
+}
+
+.board {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-auto-rows: auto;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--land);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+.cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--land);
+  border: 1px solid var(--land-line);
+  cursor: default;
+}
+.cell.cell-light { background: var(--land-light); }
+.cell.cell-dark { background: var(--land-dark); }
+.cell.water { background: var(--water); border-color: var(--water-line); }
+.cell.last-move { background-color: var(--lastmove-soft); border-color: var(--lastmove); }
+.cell.selectable { cursor: pointer; }
+.cell.selectable:hover { filter: brightness(1.12); }
+
+.corner {
+  position: absolute;
+  width: 30%;
+  height: 30%;
+  border-color: var(--accent);
+  display: none;
+  pointer-events: none;
+}
+.cell.selected .corner { display: block; }
+.corner.tl { top: 8%; left: 8%; border-top: 2.5px solid; border-left: 2.5px solid; }
+.corner.tr { top: 8%; right: 8%; border-top: 2.5px solid; border-right: 2.5px solid; }
+.corner.bl { bottom: 8%; left: 8%; border-bottom: 2.5px solid; border-left: 2.5px solid; }
+.corner.br { bottom: 8%; right: 8%; border-bottom: 2.5px solid; border-right: 2.5px solid; }
+
+.move-dot {
+  position: absolute;
+  width: 26%;
+  height: 26%;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent);
+  display: none;
+  pointer-events: none;
+}
+.cell.move-hint .move-dot { display: block; }
+.cell.move-hint.has-capture .move-dot {
+  width: 82%;
+  height: 82%;
+  background: transparent;
+  border: 2.5px dashed var(--danger);
+  border-radius: 50%;
+}
+
+.cell.in-check { box-shadow: inset 0 0 0 3px var(--danger); }
+.cell.zone-tint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--stun-soft);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.piece {
+  position: relative;
+  width: 78%;
+  height: 78%;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0,0,0,0.35);
+  box-shadow: 0 2px 3px rgba(0,0,0,0.35);
+  color: var(--black-fg);
+}
+.piece.side-b { background: var(--black-bg); color: var(--black-fg); }
+.piece.side-w { background: var(--white-bg); color: var(--white-fg); }
+.piece .icon { width: 62%; height: 62%; fill: currentColor; color: inherit; }
+.piece .icon .stroke-part { fill: none; stroke: currentColor; }
+
+.piece.stunned { outline: 2.5px dashed var(--stun); outline-offset: 2px; }
+.piece.restricted { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+.piece.ch-piece { box-shadow: 0 0 0 2px var(--accent), 0 2px 3px rgba(0,0,0,0.35); }
+
+.status-line {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar { display: flex; flex-direction: column; gap: 12px; }
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.panel h2 {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 10px;
+}
+.panel summary {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.segmented button {
+  flex: 1;
+  padding: 8px 6px;
+  background: var(--panel-2);
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 13px;
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+}
+.segmented button:last-child { border-right: none; }
+.segmented button.active { background: var(--accent); color: #1a1206; font-weight: 600; }
+
+.diff-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.diff-row.hidden { display: none; }
+.diff-row button {
+  flex: 1;
+  padding: 7px 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+.diff-row button.active { border-color: var(--accent); color: var(--accent); }
+
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
+.check-row input { accent-color: var(--accent); }
+
+.btn-row { display: flex; gap: 8px; }
+.btn {
+  flex: 1;
+  padding: 9px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: #1a1206; border-color: var(--accent); font-weight: 600; }
+
+.turn-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+.turn-swatch { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.3); }
+.turn-swatch.w { background: var(--white-bg); }
+.turn-swatch.b { background: var(--black-bg); }
+
+.banner {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  display: none;
+}
+.banner.show { display: block; }
+.banner.check { background: var(--danger-soft); border: 1px solid var(--danger); color: var(--text); }
+.banner.over { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--text); font-weight: 600; }
+
+.captured-grid { display: flex; flex-direction: column; gap: 8px; }
+.captured-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 30px; }
+.captured-row .cap-label { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); width: 46px; flex-shrink: 0; }
+.cap-chip {
+  width: 24px; height: 24px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(0,0,0,0.3);
+}
+.cap-chip.side-b { background: var(--black-bg); color: var(--black-fg); }
+.cap-chip.side-w { background: var(--white-bg); color: var(--white-fg); }
+.cap-chip svg { width: 65%; height: 65%; fill: currentColor; }
+
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 210px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column-reverse;
+}
+.log-list li { padding: 3px 0; border-bottom: 1px dashed var(--border-soft); }
+.log-list li:last-child { border-bottom: none; }
+.log-list .mv-cap { color: var(--danger); }
+
+.rules-body { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; margin-top: 10px; }
+.rules-body b { color: var(--text); }
+.rules-body .rule-piece { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+.rules-body .rule-icon {
+  width: 24px; height: 24px; border-radius: 5px; flex-shrink: 0;
+  background: var(--panel-2); display:flex; align-items:center; justify-content:center;
+  border: 1px solid var(--border);
+}
+.rules-body .rule-icon svg { width: 65%; height: 65%; fill: var(--accent); }
+
+.hidden { display: none !important; }
+
+.online-room-code {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.online-room-code span {
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  font-weight: 700;
+}
+.online-role-line { font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
+.online-status-line { font-size: 12px; color: var(--text-faint); }
+#online-setup .btn-row-hint { font-size: 11px; color: var(--text-faint); margin-top: 6px; }
+#join-code-input:focus { outline: none; border-color: var(--accent); }
+
+footer.credit {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 22px;
+}
+
+.promo-overlay {
+  position: fixed; inset: 0;
+  background: rgba(6, 7, 4, 0.72);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50;
+}
+.promo-overlay.hidden { display: none; }
+.promo-modal {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+.promo-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 14px;
+  text-align: center;
+}
+.promo-choices { display: flex; gap: 10px; }
+.promo-choice {
+  width: 56px; height: 56px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all .12s ease;
+}
+.promo-choice .icon { width: 28px; height: 28px; fill: currentColor; }
+.promo-choice:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="title-block">
+      <h1>Cờ Chiến Thuật</h1>
+      <p class="subtitle">Tactical Command · Bàn cờ 10 × 10</p>
+    </div>
+    <div class="radar-sweep" aria-hidden="true"></div>
+  </header>
+
+  <main class="layout">
+    <section class="board-wrap">
+      <div class="board-frame">
+        <div class="col-labels" id="col-labels"></div>
+        <div class="row-labels" id="row-labels"></div>
+        <div class="board" id="board"></div>
+      </div>
+      <div class="status-line" id="status-line">Trắng đi trước. Chọn một quân để xem nước đi.</div>
+    </section>
+
+    <aside class="sidebar">
+      <div class="panel" id="mode-panel">
+        <h2>Chế độ chơi</h2>
+        <div class="segmented" id="mode-toggle">
+          <button data-mode="pvp" class="active">2 người</button>
+          <button data-mode="ai">Đấu với máy</button>
+          <button data-mode="online">Trực tuyến</button>
+        </div>
+        <div class="diff-row hidden" id="diff-row">
+          <button data-diff="easy">Dễ</button>
+          <button data-diff="medium" class="active">Vừa</button>
+          <button data-diff="hard">Khó</button>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="zones-toggle" checked>
+          Hiện vùng bị choáng
+        </label>
+        <div class="btn-row">
+          <button class="btn primary" id="new-game-btn">Ván mới</button>
+          <button class="btn" id="undo-btn">Hoàn tác</button>
+        </div>
+      </div>
+
+      <div class="panel hidden" id="online-panel">
+        <h2>Chơi trực tuyến</h2>
+        <div id="online-setup">
+          <button class="btn primary" id="create-room-btn" style="width:100%;margin-bottom:8px;">Tạo phòng mới</button>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="join-code-input" placeholder="Nhập mã phòng" maxlength="6"
+              style="flex:1; background:var(--panel-2); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:7px 8px; font-family:var(--font-mono); text-transform:uppercase;">
+            <button class="btn" id="join-room-btn">Vào phòng</button>
+          </div>
+          <div class="btn-row-hint">Nếu phòng đã có đủ 2 người chơi, bạn sẽ tự động vào xem với vai trò khán giả.</div>
+        </div>
+        <div class="hidden" id="online-connected">
+          <div class="online-room-code">Mã phòng: <span id="room-code-text"></span>
+            <button class="btn" id="copy-room-btn" style="padding:4px 8px;font-size:11px;flex:none;">Sao chép</button>
+          </div>
+          <div class="online-role-line" id="online-role-line"></div>
+          <div class="online-status-line" id="online-status-line"></div>
+          <button class="btn" id="leave-room-btn" style="width:100%;margin-top:10px;">Rời phòng</button>
+        </div>
+      </div>
+
+      <div class="panel" id="status-panel">
+        <h2>Trạng thái</h2>
+        <div class="turn-indicator" id="turn-indicator">
+          <span class="turn-swatch w" id="turn-swatch"></span>
+          <span id="turn-text">Lượt: Trắng</span>
+        </div>
+        <div class="banner check" id="check-banner"></div>
+        <div class="banner over" id="over-banner"></div>
+      </div>
+
+      <div class="panel" id="captured-panel">
+        <h2>Quân đã mất</h2>
+        <div class="captured-grid">
+          <div class="captured-row"><span class="cap-label">Đen mất</span><div id="captured-b"></div></div>
+          <div class="captured-row"><span class="cap-label">Trắng mất</span><div id="captured-w"></div></div>
+        </div>
+      </div>
+
+      <div class="panel" id="log-panel">
+        <h2>Biên bản nước đi</h2>
+        <ul class="log-list" id="move-log"></ul>
+      </div>
+
+      <details class="panel" id="rules-panel">
+        <summary>Luật chơi tóm tắt</summary>
+        <div class="rules-body" id="rules-body"></div>
+      </details>
+    </aside>
+  </main>
+
+  <footer class="credit">Cờ Chiến Thuật — bàn cờ 10×10 · 2 người hoặc đấu với máy</footer>
+</div>
+
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+<defs>
+
+<symbol id="icon-CH" viewBox="0 0 24 24">
+  <path d="M12 2.3l2.29 6.54 6.93.24-5.53 4.27 2 6.65L12 16.1l-5.69 3.9 2-6.65-5.53-4.27 6.93-.24z"/>
+</symbol>
+
+<symbol id="icon-TK" viewBox="0 0 24 24">
+  <path d="M12 1.6l1.7 6.2 8.5 4.3-8.3-.7.7 6.7-2.6-3.9-2.6 3.9.7-6.7-8.3.7 8.5-4.3z"/>
+</symbol>
+
+<symbol id="icon-PK" viewBox="0 0 24 24">
+  <path fill-rule="evenodd" d="M12 3.2a8.8 8.8 0 100 17.6 8.8 8.8 0 000-17.6zm0 3a5.8 5.8 0 110 11.6 5.8 5.8 0 010-11.6z"/>
+  <path d="M12 12V4.7a7.3 7.3 0 016.3 10.9z" opacity="0.85"/>
+  <circle cx="12" cy="12" r="2.1"/>
+</symbol>
+
+<symbol id="icon-XT" viewBox="0 0 24 24">
+  <rect x="2.5" y="14.5" width="19" height="3.6" rx="1.2"/>
+  <rect x="6" y="9.6" width="10.5" height="5.2" rx="1.1"/>
+  <circle cx="13" cy="9.4" r="3.1"/>
+  <rect x="13" y="6.6" width="8.4" height="2" rx="1"/>
+</symbol>
+
+<symbol id="icon-TC" viewBox="0 0 24 24">
+  <path d="M2 15.4h20l-3.1 4.6H5.1z"/>
+  <rect x="9.6" y="8.8" width="4.8" height="6.6" rx="0.8"/>
+  <rect x="11.3" y="4.3" width="1.4" height="4.5"/>
+</symbol>
+
+<symbol id="icon-DN" viewBox="0 0 24 24">
+  <path d="M2 10.8A10 8 0 0122 10.8z"/>
+  <rect x="2" y="10.6" width="20" height="1.3"/>
+  <line class="stroke-part" x1="6.2" y1="11.8" x2="11.3" y2="17.4" stroke-width="1.1" stroke-linecap="round"/>
+  <line class="stroke-part" x1="17.8" y1="11.8" x2="12.7" y2="17.4" stroke-width="1.1" stroke-linecap="round"/>
+  <circle cx="12" cy="18.6" r="1.9"/>
+  <rect x="10.4" y="20.6" width="3.2" height="2.6" rx="1"/>
+</symbol>
+
+<symbol id="icon-BB" viewBox="0 0 24 24">
+  <path d="M4 14.6A8 6.9 0 0120 14.6z"/>
+  <rect x="2.6" y="14.4" width="18.8" height="2.3" rx="1"/>
+</symbol>
+
+<symbol id="icon-HQ" viewBox="0 0 24 24">
+  <circle class="stroke-part" cx="12" cy="4.9" r="2.05" stroke-width="1.6"/>
+  <rect x="11.15" y="7.2" width="1.7" height="11.6" rx="0.6"/>
+  <rect x="7.2" y="9.2" width="9.6" height="1.7" rx="0.6"/>
+  <path class="stroke-part" d="M4.6 15.2a7.4 7.4 0 0014.8 0" stroke-width="1.9" stroke-linecap="round"/>
+</symbol>
+
+</defs>
+</svg>
+
+<div id="promo-overlay" class="promo-overlay hidden">
+  <div class="promo-modal">
+    <div class="promo-title">Phong cấp Bộ binh thành:</div>
+    <div class="promo-choices" id="promo-choices"></div>
+  </div>
+</div>
+
+<script>
+const SIZE = 10;
+const COLS = "ABCDEFGHIJ";
+const ORTHO = [[-1,0],[1,0],[0,-1],[0,1]];
+const DIAG = [[-1,-1],[-1,1],[1,-1],[1,1]];
+const ALL8 = ORTHO.concat(DIAG);
+const KNIGHT = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+const EXEMPT_TC = ["TK","HQ","TC"];
+const ALL_PROMO = ["TK","PK","XT","TC","DN","HQ"];
+
+const PIECE_INFO = {
+  CH: { name: "Chỉ huy", value: 0 },
+  TK: { name: "Tiêm kích", value: 9 },
+  PK: { name: "Phòng không", value: 4 },
+  XT: { name: "Xe tăng", value: 8 },
+  TC: { name: "Tàu chiến", value: 9 },
+  DN: { name: "Đặc nhiệm", value: 7 },
+  BB: { name: "Bộ binh", value: 2 },
+  HQ: { name: "Hải quân", value: 5 },
+};
+
+function inBounds(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
+
+function label(r, c) { return COLS[c] + (r + 1); }
+function parseLabel(lbl) {
+  const m = String(lbl).trim().match(/^([A-Za-z])(\d{1,2})$/);
+  const c = COLS.indexOf(m[1].toUpperCase());
+  const r = parseInt(m[2], 10) - 1;
+  return { r, c };
+}
+
+// Custom 10x10 layout supplied by the user via the layout editor tool.
+const WATER_LABELS = ["A1","J1","A2","J2","A3","J3","A4","J4","A5","B5","C5","J5","A6","H6","I6","J6","A7","J7","A8","J8","A9","J9","A10","J10"];
+const INITIAL_PIECES = [
+  { pos: "A1", type: "TC", side: "b" }, { pos: "B1", type: "XT", side: "b" },
+  { pos: "C1", type: "HQ", side: "b" }, { pos: "D1", type: "PK", side: "b" },
+  { pos: "E1", type: "CH", side: "b" }, { pos: "F1", type: "TK", side: "b" },
+  { pos: "G1", type: "DN", side: "b" }, { pos: "H1", type: "HQ", side: "b" },
+  { pos: "I1", type: "XT", side: "b" }, { pos: "J1", type: "TC", side: "b" },
+  { pos: "A2", type: "BB", side: "b" }, { pos: "B2", type: "BB", side: "b" },
+  { pos: "C2", type: "BB", side: "b" }, { pos: "D2", type: "BB", side: "b" },
+  { pos: "E2", type: "BB", side: "b" }, { pos: "F2", type: "BB", side: "b" },
+  { pos: "G2", type: "BB", side: "b" }, { pos: "H2", type: "BB", side: "b" },
+  { pos: "I2", type: "BB", side: "b" }, { pos: "J2", type: "BB", side: "b" },
+  { pos: "A9", type: "BB", side: "w" }, { pos: "B9", type: "BB", side: "w" },
+  { pos: "C9", type: "BB", side: "w" }, { pos: "D9", type: "BB", side: "w" },
+  { pos: "E9", type: "BB", side: "w" }, { pos: "F9", type: "BB", side: "w" },
+  { pos: "G9", type: "BB", side: "w" }, { pos: "H9", type: "BB", side: "w" },
+  { pos: "I9", type: "BB", side: "w" }, { pos: "J9", type: "BB", side: "w" },
+  { pos: "A10", type: "TC", side: "w" }, { pos: "B10", type: "XT", side: "w" },
+  { pos: "C10", type: "HQ", side: "w" }, { pos: "D10", type: "DN", side: "w" },
+  { pos: "E10", type: "TK", side: "w" }, { pos: "F10", type: "CH", side: "w" },
+  { pos: "G10", type: "PK", side: "w" }, { pos: "H10", type: "HQ", side: "w" },
+  { pos: "I10", type: "XT", side: "w" }, { pos: "J10", type: "TC", side: "w" },
+];
+
+const WATER_SET = new Set(WATER_LABELS.map((lbl) => { const p = parseLabel(lbl); return p.r + "_" + p.c; }));
+
+function getTerrain(r, c) {
+  return WATER_SET.has(r + "_" + c) ? "water" : "land";
+}
+
+// A bridge cell is any water cell that is NOT on the outer edge columns (those are open
+// water/ocean and never crossable). Any other water cell is an interior river tile that an
+// allied Bộ binh standing on it can turn into a crossable bridge for Xe tăng.
+function isRiverBridgeCell(r, c) {
+  return getTerrain(r, c) === "water" && c > 0 && c < SIZE - 1;
+}
+
+function promotionRow(side) { return side === "w" ? 0 : SIZE - 1; }
+function promotionChoices(terrain) {
+  return ALL_PROMO.filter((t) => !(terrain === "water" && t === "XT") && !(terrain === "land" && t === "TC"));
+}
+
+function createInitialBoard() {
+  const board = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+  for (const p of INITIAL_PIECES) {
+    const { r, c } = parseLabel(p.pos);
+    const piece = { type: p.type, side: p.side };
+    if (p.type === "CH" || p.type === "XT" || p.type === "BB") piece.moved = false;
+    board[r][c] = piece;
+  }
+  board.ep = null;
+  return board;
+}
+
+function getGameState(board) {
+  const state = { paralyzed: new Set(), tcBySide: { w: [], b: [] }, pkColsBySide: { w: [], b: [] } };
+  const pkCellsBySide = { w: [], b: [] };
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      if (p.type === "TC") state.tcBySide[p.side].push({ r, c });
+      if (p.type === "PK") pkCellsBySide[p.side].push({ r, c, col: c });
+    }
+  }
+  for (const side of ["w", "b"]) {
+    for (const tc of state.tcBySide[side]) {
+      for (const [dr, dc] of ORTHO) {
+        let rr = tc.r + dr, cc = tc.c + dc;
+        while (inBounds(rr, cc)) {
+          const q = board[rr][cc];
+          if (q) {
+            // First piece encountered in this direction gets stunned, but only if it belongs
+            // to the opposing side and is not an exempt type (TK/HQ/TC). Exempt pieces (of either
+            // side) are never stunned and shield whatever is behind them from this TC's rays.
+            if (q.side !== side && !EXEMPT_TC.includes(q.type)) {
+              state.paralyzed.add(rr + "_" + cc);
+            }
+            break;
+          }
+          rr += dr; cc += dc;
+        }
+      }
+    }
+  }
+  // A stunned PK loses its control over enemy TK columns while paralyzed.
+  for (const side of ["w", "b"]) {
+    state.pkColsBySide[side] = pkCellsBySide[side]
+      .filter((cell) => !state.paralyzed.has(cell.r + "_" + cell.c))
+      .map((cell) => cell.col);
+  }
+  return state;
+}
+
+function isInEnemyPKZoneCol(state, col, side) {
+  const opp = side === "w" ? "b" : "w";
+  for (const pkCol of state.pkColsBySide[opp]) {
+    if (Math.abs(pkCol - col) <= 1) return true;
+  }
+  return false;
+}
+
+function canEnter(board, state, rr, cc, side, type) {
+  if (!inBounds(rr, cc)) return false;
+  const target = board[rr][cc];
+  if (target && target.side === side) return false;
+  if (type === "XT" && getTerrain(rr, cc) === "water") return false;
+  if (type === "TC" && getTerrain(rr, cc) === "land") return false;
+  return true;
+}
+
+function pseudoLegalMoves(board, r, c, state) {
+  const piece = board[r][c];
+  if (!piece) return [];
+  if (state.paralyzed.has(r + "_" + c)) return [];
+  const { type, side } = piece;
+  const moves = [];
+
+  if (type === "CH") {
+    for (const [dr, dc] of ALL8) {
+      const rr = r + dr, cc = c + dc;
+      if (canEnter(board, state, rr, cc, side, type)) moves.push({ r: rr, c: cc });
+    }
+  } else if (type === "PK") {
+    for (const [dr, dc] of DIAG) {
+      let rr = r + dr, cc = c + dc;
+      while (inBounds(rr, cc)) {
+        const occ = board[rr][cc];
+        if (occ) {
+          if (canEnter(board, state, rr, cc, side, type)) moves.push({ r: rr, c: cc });
+          break;
+        } else {
+          if (!canEnter(board, state, rr, cc, side, type)) break;
+          moves.push({ r: rr, c: cc });
+        }
+        rr += dr; cc += dc;
+      }
+    }
+  } else if (type === "BB") {
+    const piece = board[r][c];
+    const fwd = side === "w" ? -1 : 1;
+    const fr = r + fwd, fc = c;
+    if (inBounds(fr, fc) && !board[fr][fc] && canEnter(board, state, fr, fc, side, type)) {
+      moves.push({ r: fr, c: fc });
+      if (piece.moved === false) {
+        const fr2 = r + fwd * 2;
+        if (inBounds(fr2, fc) && !board[fr2][fc] && canEnter(board, state, fr2, fc, side, type)) {
+          moves.push({ r: fr2, c: fc });
+        }
+      }
+    }
+    for (const dc of [-1, 1]) {
+      const rr = r + fwd, cc = c + dc;
+      if (inBounds(rr, cc)) {
+        const occ = board[rr][cc];
+        if (occ && occ.side !== side && canEnter(board, state, rr, cc, side, type)) {
+          moves.push({ r: rr, c: cc });
+        } else if (!occ && board.ep && board.ep.r === rr && board.ep.c === cc) {
+          const capturedPawn = board[board.ep.capturedAt.r][board.ep.capturedAt.c];
+          if (capturedPawn && capturedPawn.type === "BB" && capturedPawn.side !== side) {
+            moves.push({ r: rr, c: cc });
+          }
+        }
+      }
+    }
+  } else if (type === "XT") {
+    for (const [dr, dc] of ORTHO) {
+      let rr = r + dr, cc = c + dc;
+      while (inBounds(rr, cc)) {
+        const occ = board[rr][cc];
+        if (occ) {
+          if (occ.type === "BB" && occ.side === side && isRiverBridgeCell(rr, cc)) {
+            rr += dr; cc += dc; continue; // cross bridge over allied infantry, cannot stop here
+          }
+          if (canEnter(board, state, rr, cc, side, type)) moves.push({ r: rr, c: cc });
+          break;
+        } else {
+          if (!canEnter(board, state, rr, cc, side, type)) break;
+          moves.push({ r: rr, c: cc });
+        }
+        rr += dr; cc += dc;
+      }
+    }
+  } else if (type === "TK") {
+    const restricted = isInEnemyPKZoneCol(state, c, side);
+    const maxSteps = restricted ? 1 : Infinity;
+    for (const [dr, dc] of ALL8) {
+      let rr = r + dr, cc = c + dc, steps = 0;
+      while (inBounds(rr, cc) && steps < maxSteps) {
+        steps++;
+        const occ = board[rr][cc];
+        if (occ) {
+          if (canEnter(board, state, rr, cc, side, type)) moves.push({ r: rr, c: cc });
+          break; // Tiêm kích không còn bay xuyên quân đồng minh nữa
+        } else {
+          if (!canEnter(board, state, rr, cc, side, type)) break;
+          moves.push({ r: rr, c: cc });
+        }
+        rr += dr; cc += dc;
+      }
+    }
+  } else if (type === "DN") {
+    for (const [dr, dc] of DIAG) {
+      let rr = r + dr, cc = c + dc;
+      while (inBounds(rr, cc)) {
+        const occ = board[rr][cc];
+        if (occ) {
+          if (occ.side !== side && canEnter(board, state, rr, cc, side, type)) moves.push({ r: rr, c: cc });
+          break;
+        } else {
+          if (!canEnter(board, state, rr, cc, side, type)) break;
+          moves.push({ r: rr, c: cc });
+        }
+        rr += dr; cc += dc;
+      }
+    }
+  } else if (type === "TC") {
+    for (const [dr, dc] of ORTHO) {
+      let rr = r + dr, cc = c + dc, steps = 0;
+      while (inBounds(rr, cc) && steps < 2) {
+        steps++;
+        const occ = board[rr][cc];
+        if (occ) {
+          if (occ.side !== side && canEnter(board, state, rr, cc, side, type)) moves.push({ r: rr, c: cc });
+          break;
+        } else {
+          if (!canEnter(board, state, rr, cc, side, type)) break;
+          moves.push({ r: rr, c: cc });
+        }
+        rr += dr; cc += dc;
+      }
+    }
+  } else if (type === "HQ") {
+    for (const [dr, dc] of KNIGHT) {
+      const rr = r + dr, cc = c + dc;
+      if (canEnter(board, state, rr, cc, side, type)) moves.push({ r: rr, c: cc });
+    }
+    if (getTerrain(r, c) === "water") {
+      for (const [dr, dc] of ORTHO) {
+        const rr = r + dr, cc = c + dc;
+        if (canEnter(board, state, rr, cc, side, type)) moves.push({ r: rr, c: cc });
+      }
+    }
+  }
+  return moves;
+}
+
+function applyMoveBoard(board, from, to, promote) {
+  const nb = board.map((row) => row.slice());
+  const moving = nb[from.r][from.c];
+  let newPiece = moving;
+  if (moving && moving.moved === false) newPiece = { ...moving, moved: true };
+  if (promote) newPiece = { type: promote, side: moving.side };
+  if (
+    moving && moving.type === "BB" && board.ep &&
+    to.r === board.ep.r && to.c === board.ep.c && to.c !== from.c && !board[to.r][to.c]
+  ) {
+    nb[board.ep.capturedAt.r][board.ep.capturedAt.c] = null; // remove the passed pawn
+  }
+  nb[to.r][to.c] = newPiece;
+  nb[from.r][from.c] = null;
+  nb.ep = null;
+  if (moving && moving.type === "BB" && to.c === from.c && Math.abs(to.r - from.r) === 2) {
+    nb.ep = { r: (from.r + to.r) / 2, c: from.c, capturedAt: { r: to.r, c: to.c } };
+  }
+  return nb;
+}
+
+function applyCastleBoard(board, castle) {
+  const nb = board.map((row) => row.slice());
+  const ch = nb[castle.chFrom.r][castle.chFrom.c];
+  const xt = nb[castle.xtFrom.r][castle.xtFrom.c];
+  nb[castle.chFrom.r][castle.chFrom.c] = null;
+  nb[castle.xtFrom.r][castle.xtFrom.c] = null;
+  nb[castle.chTo.r][castle.chTo.c] = { ...ch, moved: true };
+  nb[castle.xtTo.r][castle.xtTo.c] = { ...xt, moved: true };
+  nb.ep = null;
+  return nb;
+}
+
+function resultingBoard(board, mv) {
+  if (mv.castle) return applyCastleBoard(board, mv.castle);
+  return applyMoveBoard(board, mv.from, mv.to, mv.promote);
+}
+
+function findCH(board, side) {
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++) {
+      const p = board[r][c];
+      if (p && p.side === side && p.type === "CH") return { r, c };
+    }
+  return null;
+}
+
+function isSquareAttacked(board, r, c, bySide, state) {
+  for (let rr = 0; rr < SIZE; rr++)
+    for (let cc = 0; cc < SIZE; cc++) {
+      const p = board[rr][cc];
+      if (p && p.side === bySide) {
+        const moves = pseudoLegalMoves(board, rr, cc, state);
+        for (const m of moves) if (m.r === r && m.c === c) return true;
+      }
+    }
+  return false;
+}
+
+function isInCheck(board, side, state) {
+  const chPos = findCH(board, side);
+  if (!chPos) return false;
+  const opp = side === "w" ? "b" : "w";
+  return isSquareAttacked(board, chPos.r, chPos.c, opp, state);
+}
+
+function canCastle(board, state, side, chPos, xtCol) {
+  const ch = board[chPos.r][chPos.c];
+  if (!ch || ch.moved !== false) return null;
+  const row = chPos.r;
+  const xt = board[row][xtCol];
+  if (!xt || xt.type !== "XT" || xt.side !== side || xt.moved !== false) return null;
+  const chCol = chPos.c;
+  const dir = xtCol > chCol ? 1 : -1;
+  for (let cc = chCol + dir; cc !== xtCol; cc += dir) {
+    if (board[row][cc]) return null; // path must be fully empty
+  }
+  const opp = side === "w" ? "b" : "w";
+  if (isSquareAttacked(board, row, chCol, opp, state)) return null; // CH currently in check
+  for (let step = 1; step <= 2; step++) {
+    const cc = chCol + dir * step;
+    if (!inBounds(row, cc)) return null;
+    if (isSquareAttacked(board, row, cc, opp, state)) return null; // passes through/lands on attacked square
+  }
+  return {
+    chFrom: chPos,
+    xtFrom: { r: row, c: xtCol },
+    chTo: { r: row, c: chCol + dir * 2 },
+    xtTo: { r: row, c: chCol + dir },
+  };
+}
+
+function getAllLegalMoves(board, side) {
+  const state = getGameState(board);
+  const result = [];
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++) {
+      const p = board[r][c];
+      if (!p || p.side !== side) continue;
+      const pseudo = pseudoLegalMoves(board, r, c, state);
+      for (const m of pseudo) {
+        const nb = applyMoveBoard(board, { r, c }, m);
+        const nstate = getGameState(nb);
+        if (isInCheck(nb, side, nstate)) continue;
+        const isEnPassant = p.type === "BB" && !board[m.r][m.c] && m.c !== c;
+        const captured = isEnPassant ? board[board.ep.capturedAt.r][board.ep.capturedAt.c] : board[m.r][m.c];
+        if (p.type === "BB" && m.r === promotionRow(side)) {
+          const terrain = getTerrain(m.r, m.c);
+          for (const promo of promotionChoices(terrain)) {
+            result.push({ from: { r, c }, to: m, piece: p, captured, promote: promo });
+          }
+        } else {
+          result.push({ from: { r, c }, to: m, piece: p, captured, enPassant: isEnPassant });
+        }
+      }
+      if (p.type === "CH") {
+        for (let xc = 0; xc < SIZE; xc++) {
+          const q = board[r][xc];
+          if (q && q.type === "XT" && q.side === side) {
+            const info = canCastle(board, state, side, { r, c }, xc);
+            if (info) result.push({ from: { r, c }, to: info.chTo, piece: p, captured: null, castle: info });
+          }
+        }
+      }
+    }
+  return result;
+}
+
+function countPseudoMoves(board, side, state) {
+  let n = 0;
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++) {
+      const p = board[r][c];
+      if (p && p.side === side) n += pseudoLegalMoves(board, r, c, state).length;
+    }
+  return n;
+}
+
+function evaluate(board, forSide) {
+  let material = 0;
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const val = PIECE_INFO[p.type].value;
+      material += p.side === forSide ? val : -val;
+    }
+  const state = getGameState(board);
+  const oppSide = forSide === "w" ? "b" : "w";
+  const mobility = countPseudoMoves(board, forSide, state) - countPseudoMoves(board, oppSide, state);
+  return material * 10 + mobility;
+}
+
+function search(board, side, depth, alpha, beta, maximizingSide, deadline) {
+  const legalMoves = getAllLegalMoves(board, side);
+  if (legalMoves.length === 0) {
+    const state = getGameState(board);
+    const inCheckNow = isInCheck(board, side, state);
+    if (inCheckNow) return side === maximizingSide ? -100000 - depth : 100000 + depth;
+    return 0;
+  }
+  if (depth === 0 || (deadline && Date.now() > deadline)) {
+    return evaluate(board, maximizingSide);
+  }
+  legalMoves.sort((a, b) => (b.captured ? 1 : 0) - (a.captured ? 1 : 0));
+  const nextSide = side === "w" ? "b" : "w";
+  if (side === maximizingSide) {
+    let best = -Infinity;
+    for (const mv of legalMoves) {
+      const nb = resultingBoard(board, mv);
+      const val = search(nb, nextSide, depth - 1, alpha, beta, maximizingSide, deadline);
+      if (val > best) best = val;
+      if (val > alpha) alpha = val;
+      if (alpha >= beta) break;
+      if (deadline && Date.now() > deadline) break;
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const mv of legalMoves) {
+      const nb = resultingBoard(board, mv);
+      const val = search(nb, nextSide, depth - 1, alpha, beta, maximizingSide, deadline);
+      if (val < best) best = val;
+      if (val < beta) beta = val;
+      if (alpha >= beta) break;
+      if (deadline && Date.now() > deadline) break;
+    }
+    return best;
+  }
+}
+
+function chooseAIMove(board, side, maxDepth, timeBudgetMs) {
+  const deadline = Date.now() + timeBudgetMs;
+  const rootMoves = getAllLegalMoves(board, side);
+  if (rootMoves.length === 0) return null;
+  rootMoves.sort((a, b) => (b.captured ? 1 : 0) - (a.captured ? 1 : 0));
+  let bestMove = rootMoves[0];
+  const nextSide = side === "w" ? "b" : "w";
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    let bestVal = -Infinity;
+    let currentBest = rootMoves[0];
+    let timedOut = false;
+    for (const mv of rootMoves) {
+      const nb = resultingBoard(board, mv);
+      const val = search(nb, nextSide, depth - 1, -Infinity, Infinity, side, deadline);
+      if (val > bestVal) { bestVal = val; currentBest = mv; }
+      if (Date.now() > deadline) { timedOut = true; break; }
+    }
+    if (!timedOut) bestMove = currentBest;
+    if (Date.now() > deadline) break;
+  }
+  return bestMove;
+}
+
+const MCTS_WEIGHTS = new Float64Array([-0.108,0,0,0,0,0,0.054,0,0,0,0,0,0.162,0,0,0,-0.108,0,0.010419,0.010419,0.008335,0.008335,0.060252,0.006252,0,0,0.008335,0.008335,0.164084,0.002084,0.009377,0.009377,-0.108,0,0.01911,0.01911,0.015288,0.015288,0.065466,0.011466,0,0,0.015288,0.015288,0.165822,0.003822,0.017199,0.017199,-0.108,0,0.025464,0.025464,0.020372,0.020372,0.069279,0.015279,0,0,0.020372,0.020372,0.167093,0.005093,0.022918,0.022918,-0.108,0,0.028854,0.028854,0.023083,0.023083,0.071313,0.017313,0,0,0.023083,0.023083,0.167771,0.005771,0.025969,0.025969,-0.108,0,0.028854,0.028854,0.023083,0.023083,0.071313,0.017313,0,0,0.023083,0.023083,0.167771,0.005771,0.025969,0.025969,-0.108,0,0.025464,0.025464,0.020372,0.020372,0.069279,0.015279,0,0,0.020372,0.020372,0.167093,0.005093,0.022918,0.022918,-0.108,0,0.01911,0.01911,0.015288,0.015288,0.065466,0.011466,0,0,0.015288,0.015288,0.165822,0.003822,0.017199,0.017199,-0.108,0,0.010419,0.010419,0.008335,0.008335,0.060252,0.006252,0,0,0.008335,0.008335,0.164084,0.002084,0.009377,0.009377,-0.108,0,0,0,0,0,0.054,0,0,0,0,0,0.162,0,0,0,-0.096,-0.012,0.010419,0.010419,0.008335,0.008335,0.054252,0.012252,0.011111,0.011111,0.008335,0.008335,0.146084,0.020084,0.009377,0.009377,-0.096,-0.012,0.022222,0.022222,0.017778,0.017778,0.061333,0.019333,0.011111,0.011111,0.017778,0.017778,0.148444,0.022444,0.02,0.02,-0.096,-0.012,0.032414,0.032414,0.025931,0.025931,0.067448,0.025448,0.011111,0.011111,0.025931,0.025931,0.150483,0.024483,0.029172,0.029172,-0.096,-0.012,0.040165,0.040165,0.032132,0.032132,0.072099,0.030099,0.011111,0.011111,0.032132,0.032132,0.152033,0.026033,0.036148,0.036148,-0.096,-0.012,0.044444,0.044444,0.035556,0.035556,0.074667,0.032667,0.011111,0.011111,0.035556,0.035556,0.152889,0.026889,0.04,0.04,-0.096,-0.012,0.044444,0.044444,0.035556,0.035556,0.074667,0.032667,0.011111,0.011111,0.035556,0.035556,0.152889,0.026889,0.04,0.04,-0.096,-0.012,0.040165,0.040165,0.032132,0.032132,0.072099,0.030099,0.011111,0.011111,0.032132,0.032132,0.152033,0.026033,0.036148,0.036148,-0.096,-0.012,0.032414,0.032414,0.025931,0.025931,0.067448,0.025448,0.011111,0.011111,0.025931,0.025931,0.150483,0.024483,0.029172,0.029172,-0.096,-0.012,0.022222,0.022222,0.017778,0.017778,0.061333,0.019333,0.011111,0.011111,0.017778,0.017778,0.148444,0.022444,0.02,0.02,-0.096,-0.012,0.010419,0.010419,0.008335,0.008335,0.054252,0.012252,0.011111,0.011111,0.008335,0.008335,0.146084,0.020084,0.009377,0.009377,-0.084,-0.024,0.01911,0.01911,0.015288,0.015288,0.053466,0.023466,0.022222,0.022222,0.015288,0.015288,0.129822,0.039822,0.017199,0.017199,-0.084,-0.024,0.032414,0.032414,0.025931,0.025931,0.061448,0.031448,0.022222,0.022222,0.025931,0.025931,0.132483,0.042483,0.029172,0.029172,-0.084,-0.024,0.044444,0.044444,0.035556,0.035556,0.068667,0.038667,0.022222,0.022222,0.035556,0.035556,0.134889,0.044889,0.04,0.04,-0.084,-0.024,0.054188,0.054188,0.04335,0.04335,0.074513,0.044513,0.022222,0.022222,0.04335,0.04335,0.136838,0.046838,0.048769,0.048769,-0.084,-0.024,0.059938,0.059938,0.047951,0.047951,0.077963,0.047963,0.022222,0.022222,0.047951,0.047951,0.137988,0.047988,0.053944,0.053944,-0.084,-0.024,0.059938,0.059938,0.047951,0.047951,0.077963,0.047963,0.022222,0.022222,0.047951,0.047951,0.137988,0.047988,0.053944,0.053944,-0.084,-0.024,0.054188,0.054188,0.04335,0.04335,0.074513,0.044513,0.022222,0.022222,0.04335,0.04335,0.136838,0.046838,0.048769,0.048769,-0.084,-0.024,0.044444,0.044444,0.035556,0.035556,0.068667,0.038667,0.022222,0.022222,0.035556,0.035556,0.134889,0.044889,0.04,0.04,-0.084,-0.024,0.032414,0.032414,0.025931,0.025931,0.061448,0.031448,0.022222,0.022222,0.025931,0.025931,0.132483,0.042483,0.029172,0.029172,-0.084,-0.024,0.01911,0.01911,0.015288,0.015288,0.053466,0.023466,0.022222,0.022222,0.015288,0.015288,0.129822,0.039822,0.017199,0.017199,-0.072,-0.036,0.025464,0.025464,0.020372,0.020372,0.051279,0.033279,0.033333,0.033333,0.020372,0.020372,0.113093,0.059093,0.022918,0.022918,-0.072,-0.036,0.040165,0.040165,0.032132,0.032132,0.060099,0.042099,0.033333,0.033333,0.032132,0.032132,0.116033,0.062033,0.036148,0.036148,-0.072,-0.036,0.054188,0.054188,0.04335,0.04335,0.068513,0.050513,0.033333,0.033333,0.04335,0.04335,0.118838,0.064838,0.048769,0.048769,-0.072,-0.036,0.066667,0.066667,0.053333,0.053333,0.076,0.058,0.033333,0.033333,0.053333,0.053333,0.121333,0.067333,0.06,0.06,-0.072,-0.036,0.075155,0.075155,0.060124,0.060124,0.081093,0.063093,0.033333,0.033333,0.060124,0.060124,0.123031,0.069031,0.067639,0.067639,-0.072,-0.036,0.075155,0.075155,0.060124,0.060124,0.081093,0.063093,0.033333,0.033333,0.060124,0.060124,0.123031,0.069031,0.067639,0.067639,-0.072,-0.036,0.066667,0.066667,0.053333,0.053333,0.076,0.058,0.033333,0.033333,0.053333,0.053333,0.121333,0.067333,0.06,0.06,-0.072,-0.036,0.054188,0.054188,0.04335,0.04335,0.068513,0.050513,0.033333,0.033333,0.04335,0.04335,0.118838,0.064838,0.048769,0.048769,-0.072,-0.036,0.040165,0.040165,0.032132,0.032132,0.060099,0.042099,0.033333,0.033333,0.032132,0.032132,0.116033,0.062033,0.036148,0.036148,-0.072,-0.036,0.025464,0.025464,0.020372,0.020372,0.051279,0.033279,0.033333,0.033333,0.020372,0.020372,0.113093,0.059093,0.022918,0.022918,-0.06,-0.048,0.028854,0.028854,0.023083,0.023083,0.047313,0.041313,0.044444,0.044444,0.023083,0.023083,0.095771,0.077771,0.025969,0.025969,-0.06,-0.048,0.044444,0.044444,0.035556,0.035556,0.056667,0.050667,0.044444,0.044444,0.035556,0.035556,0.098889,0.080889,0.04,0.04,-0.06,-0.048,0.059938,0.059938,0.047951,0.047951,0.065963,0.059963,0.044444,0.044444,0.047951,0.047951,0.101988,0.083988,0.053944,0.053944,-0.06,-0.048,0.075155,0.075155,0.060124,0.060124,0.075093,0.069093,0.044444,0.044444,0.060124,0.060124,0.105031,0.087031,0.067639,0.067639,-0.06,-0.048,0.088889,0.088889,0.071111,0.071111,0.083333,0.077333,0.044444,0.044444,0.071111,0.071111,0.107778,0.089778,0.08,0.08,-0.06,-0.048,0.088889,0.088889,0.071111,0.071111,0.083333,0.077333,0.044444,0.044444,0.071111,0.071111,0.107778,0.089778,0.08,0.08,-0.06,-0.048,0.075155,0.075155,0.060124,0.060124,0.075093,0.069093,0.044444,0.044444,0.060124,0.060124,0.105031,0.087031,0.067639,0.067639,-0.06,-0.048,0.059938,0.059938,0.047951,0.047951,0.065963,0.059963,0.044444,0.044444,0.047951,0.047951,0.101988,0.083988,0.053944,0.053944,-0.06,-0.048,0.044444,0.044444,0.035556,0.035556,0.056667,0.050667,0.044444,0.044444,0.035556,0.035556,0.098889,0.080889,0.04,0.04,-0.06,-0.048,0.028854,0.028854,0.023083,0.023083,0.047313,0.041313,0.044444,0.044444,0.023083,0.023083,0.095771,0.077771,0.025969,0.025969,-0.048,-0.06,0.028854,0.028854,0.023083,0.023083,0.041313,0.047313,0.044444,0.044444,0.023083,0.023083,0.077771,0.095771,0.025969,0.025969,-0.048,-0.06,0.044444,0.044444,0.035556,0.035556,0.050667,0.056667,0.044444,0.044444,0.035556,0.035556,0.080889,0.098889,0.04,0.04,-0.048,-0.06,0.059938,0.059938,0.047951,0.047951,0.059963,0.065963,0.044444,0.044444,0.047951,0.047951,0.083988,0.101988,0.053944,0.053944,-0.048,-0.06,0.075155,0.075155,0.060124,0.060124,0.069093,0.075093,0.044444,0.044444,0.060124,0.060124,0.087031,0.105031,0.067639,0.067639,-0.048,-0.06,0.088889,0.088889,0.071111,0.071111,0.077333,0.083333,0.044444,0.044444,0.071111,0.071111,0.089778,0.107778,0.08,0.08,-0.048,-0.06,0.088889,0.088889,0.071111,0.071111,0.077333,0.083333,0.044444,0.044444,0.071111,0.071111,0.089778,0.107778,0.08,0.08,-0.048,-0.06,0.075155,0.075155,0.060124,0.060124,0.069093,0.075093,0.044444,0.044444,0.060124,0.060124,0.087031,0.105031,0.067639,0.067639,-0.048,-0.06,0.059938,0.059938,0.047951,0.047951,0.059963,0.065963,0.044444,0.044444,0.047951,0.047951,0.083988,0.101988,0.053944,0.053944,-0.048,-0.06,0.044444,0.044444,0.035556,0.035556,0.050667,0.056667,0.044444,0.044444,0.035556,0.035556,0.080889,0.098889,0.04,0.04,-0.048,-0.06,0.028854,0.028854,0.023083,0.023083,0.041313,0.047313,0.044444,0.044444,0.023083,0.023083,0.077771,0.095771,0.025969,0.025969,-0.036,-0.072,0.025464,0.025464,0.020372,0.020372,0.033279,0.051279,0.033333,0.033333,0.020372,0.020372,0.059093,0.113093,0.022918,0.022918,-0.036,-0.072,0.040165,0.040165,0.032132,0.032132,0.042099,0.060099,0.033333,0.033333,0.032132,0.032132,0.062033,0.116033,0.036148,0.036148,-0.036,-0.072,0.054188,0.054188,0.04335,0.04335,0.050513,0.068513,0.033333,0.033333,0.04335,0.04335,0.064838,0.118838,0.048769,0.048769,-0.036,-0.072,0.066667,0.066667,0.053333,0.053333,0.058,0.076,0.033333,0.033333,0.053333,0.053333,0.067333,0.121333,0.06,0.06,-0.036,-0.072,0.075155,0.075155,0.060124,0.060124,0.063093,0.081093,0.033333,0.033333,0.060124,0.060124,0.069031,0.123031,0.067639,0.067639,-0.036,-0.072,0.075155,0.075155,0.060124,0.060124,0.063093,0.081093,0.033333,0.033333,0.060124,0.060124,0.069031,0.123031,0.067639,0.067639,-0.036,-0.072,0.066667,0.066667,0.053333,0.053333,0.058,0.076,0.033333,0.033333,0.053333,0.053333,0.067333,0.121333,0.06,0.06,-0.036,-0.072,0.054188,0.054188,0.04335,0.04335,0.050513,0.068513,0.033333,0.033333,0.04335,0.04335,0.064838,0.118838,0.048769,0.048769,-0.036,-0.072,0.040165,0.040165,0.032132,0.032132,0.042099,0.060099,0.033333,0.033333,0.032132,0.032132,0.062033,0.116033,0.036148,0.036148,-0.036,-0.072,0.025464,0.025464,0.020372,0.020372,0.033279,0.051279,0.033333,0.033333,0.020372,0.020372,0.059093,0.113093,0.022918,0.022918,-0.024,-0.084,0.01911,0.01911,0.015288,0.015288,0.023466,0.053466,0.022222,0.022222,0.015288,0.015288,0.039822,0.129822,0.017199,0.017199,-0.024,-0.084,0.032414,0.032414,0.025931,0.025931,0.031448,0.061448,0.022222,0.022222,0.025931,0.025931,0.042483,0.132483,0.029172,0.029172,-0.024,-0.084,0.044444,0.044444,0.035556,0.035556,0.038667,0.068667,0.022222,0.022222,0.035556,0.035556,0.044889,0.134889,0.04,0.04,-0.024,-0.084,0.054188,0.054188,0.04335,0.04335,0.044513,0.074513,0.022222,0.022222,0.04335,0.04335,0.046838,0.136838,0.048769,0.048769,-0.024,-0.084,0.059938,0.059938,0.047951,0.047951,0.047963,0.077963,0.022222,0.022222,0.047951,0.047951,0.047988,0.137988,0.053944,0.053944,-0.024,-0.084,0.059938,0.059938,0.047951,0.047951,0.047963,0.077963,0.022222,0.022222,0.047951,0.047951,0.047988,0.137988,0.053944,0.053944,-0.024,-0.084,0.054188,0.054188,0.04335,0.04335,0.044513,0.074513,0.022222,0.022222,0.04335,0.04335,0.046838,0.136838,0.048769,0.048769,-0.024,-0.084,0.044444,0.044444,0.035556,0.035556,0.038667,0.068667,0.022222,0.022222,0.035556,0.035556,0.044889,0.134889,0.04,0.04,-0.024,-0.084,0.032414,0.032414,0.025931,0.025931,0.031448,0.061448,0.022222,0.022222,0.025931,0.025931,0.042483,0.132483,0.029172,0.029172,-0.024,-0.084,0.01911,0.01911,0.015288,0.015288,0.023466,0.053466,0.022222,0.022222,0.015288,0.015288,0.039822,0.129822,0.017199,0.017199,-0.012,-0.096,0.010419,0.010419,0.008335,0.008335,0.012252,0.054252,0.011111,0.011111,0.008335,0.008335,0.020084,0.146084,0.009377,0.009377,-0.012,-0.096,0.022222,0.022222,0.017778,0.017778,0.019333,0.061333,0.011111,0.011111,0.017778,0.017778,0.022444,0.148444,0.02,0.02,-0.012,-0.096,0.032414,0.032414,0.025931,0.025931,0.025448,0.067448,0.011111,0.011111,0.025931,0.025931,0.024483,0.150483,0.029172,0.029172,-0.012,-0.096,0.040165,0.040165,0.032132,0.032132,0.030099,0.072099,0.011111,0.011111,0.032132,0.032132,0.026033,0.152033,0.036148,0.036148,-0.012,-0.096,0.044444,0.044444,0.035556,0.035556,0.032667,0.074667,0.011111,0.011111,0.035556,0.035556,0.026889,0.152889,0.04,0.04,-0.012,-0.096,0.044444,0.044444,0.035556,0.035556,0.032667,0.074667,0.011111,0.011111,0.035556,0.035556,0.026889,0.152889,0.04,0.04,-0.012,-0.096,0.040165,0.040165,0.032132,0.032132,0.030099,0.072099,0.011111,0.011111,0.032132,0.032132,0.026033,0.152033,0.036148,0.036148,-0.012,-0.096,0.032414,0.032414,0.025931,0.025931,0.025448,0.067448,0.011111,0.011111,0.025931,0.025931,0.024483,0.150483,0.029172,0.029172,-0.012,-0.096,0.022222,0.022222,0.017778,0.017778,0.019333,0.061333,0.011111,0.011111,0.017778,0.017778,0.022444,0.148444,0.02,0.02,-0.012,-0.096,0.010419,0.010419,0.008335,0.008335,0.012252,0.054252,0.011111,0.011111,0.008335,0.008335,0.020084,0.146084,0.009377,0.009377,0,-0.108,0,0,0,0,0,0.054,0,0,0,0,0,0.162,0,0,0,-0.108,0.010419,0.010419,0.008335,0.008335,0.006252,0.060252,0,0,0.008335,0.008335,0.002084,0.164084,0.009377,0.009377,0,-0.108,0.01911,0.01911,0.015288,0.015288,0.011466,0.065466,0,0,0.015288,0.015288,0.003822,0.165822,0.017199,0.017199,0,-0.108,0.025464,0.025464,0.020372,0.020372,0.015279,0.069279,0,0,0.020372,0.020372,0.005093,0.167093,0.022918,0.022918,0,-0.108,0.028854,0.028854,0.023083,0.023083,0.017313,0.071313,0,0,0.023083,0.023083,0.005771,0.167771,0.025969,0.025969,0,-0.108,0.028854,0.028854,0.023083,0.023083,0.017313,0.071313,0,0,0.023083,0.023083,0.005771,0.167771,0.025969,0.025969,0,-0.108,0.025464,0.025464,0.020372,0.020372,0.015279,0.069279,0,0,0.020372,0.020372,0.005093,0.167093,0.022918,0.022918,0,-0.108,0.01911,0.01911,0.015288,0.015288,0.011466,0.065466,0,0,0.015288,0.015288,0.003822,0.165822,0.017199,0.017199,0,-0.108,0.010419,0.010419,0.008335,0.008335,0.006252,0.060252,0,0,0.008335,0.008335,0.002084,0.164084,0.009377,0.009377,0,-0.108,0,0,0,0,0,0.054,0,0,0,0,0,0.162,0,0,0.55,0.35,0.06,0.05,0.03,0.02,0.12,0.015]);
+// ===== MCTS engine với hàm lượng giá đã học qua tự chơi (self-play) =====
+const MCTS_TYPES = ["CH", "TK", "PK", "XT", "TC", "DN", "BB", "HQ"];
+const MCTS_TYPE_IDX = {};
+MCTS_TYPES.forEach((t, i) => (MCTS_TYPE_IDX[t] = i));
+const MCTS_NUM_PST = SIZE * SIZE * MCTS_TYPES.length * 2;
+const MCTS_ENG_NAMES = ["materialDiff","checkDiff","bridgeControlDiff","hqInWaterDiff","centerControlDiff","turnFeature","tkRestrictedDiff","mobilityDiff"];
+const MCTS_NUM_ENG = MCTS_ENG_NAMES.length;
+
+function mctsFeaturize(board, turnSide) {
+  const idx = [];
+  const state = getGameState(board);
+  let material = 0, centerControl = 0, bridgeControl = 0, hqInWater = 0, tkRestricted = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const sideMul = p.side === "w" ? 1 : -1;
+      const sideOff = p.side === "w" ? 0 : 1;
+      const sq = r * SIZE + c;
+      idx.push(sq * MCTS_TYPES.length * 2 + MCTS_TYPE_IDX[p.type] * 2 + sideOff);
+      material += sideMul * PIECE_INFO[p.type].value;
+      if (r >= 3 && r <= 7 && c >= 3 && c <= 7) centerControl += sideMul;
+      if (p.type === "BB" && isRiverBridgeCell(r, c)) bridgeControl += sideMul;
+      if (p.type === "HQ" && getTerrain(r, c) === "water") hqInWater += sideMul;
+      if (p.type === "TK") {
+        const opp = p.side === "w" ? "b" : "w";
+        let restricted = false;
+        for (const pkCol of state.pkColsBySide[opp]) {
+          if (Math.abs(pkCol - c) <= 1) { restricted = true; break; }
+        }
+        if (restricted) tkRestricted -= sideMul;
+      }
+    }
+  }
+  const chW = findCH(board, "w");
+  const chB = findCH(board, "b");
+  let checkDiff = 0;
+  if (chW && isSquareAttacked(board, chW.r, chW.c, "b", state)) checkDiff -= 1;
+  if (chB && isSquareAttacked(board, chB.r, chB.c, "w", state)) checkDiff += 1;
+  let mobilityDiff = 0;
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const n = pseudoLegalMoves(board, r, c, state).length;
+      mobilityDiff += p.side === "w" ? n : -n;
+    }
+  const eng = [material / 10, checkDiff, bridgeControl, hqInWater, centerControl / 4, turnSide === "w" ? 1 : -1, tkRestricted, mobilityDiff / 10];
+  return { idx, eng };
+}
+
+function mctsValueFromFeatures(feat, weights) {
+  let v = 0;
+  for (const i of feat.idx) v += weights[i];
+  for (let k = 0; k < MCTS_NUM_ENG; k++) v += feat.eng[k] * weights[MCTS_NUM_PST + k];
+  return v;
+}
+
+function mctsSigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+function mctsWinProbWhite(board, weights) {
+  return mctsSigmoid(mctsValueFromFeatures(mctsFeaturize(board, "w"), weights));
+}
+
+class MCTSNode {
+  constructor(board, side, parent, moveFromParent) {
+    this.board = board;
+    this.side = side;
+    this.parent = parent;
+    this.moveFromParent = moveFromParent;
+    this.children = [];
+    this.visits = 0;
+    this.valueSum = 0;
+    this.legalMoves = null; // null = not yet computed (lazy)
+    this.expandedIdx = 0;
+    this.terminal = null;
+  }
+  get avgValue() {
+    if (this.terminal !== null) return this.terminal.value;
+    if (this.legalMoves && this.children.length > 0 && this.children.length === this.legalMoves.length) {
+      let best = -Infinity;
+      for (const ch of this.children) {
+        const v = 1 - ch.avgValue;
+        if (v > best) best = v;
+      }
+      return best;
+    }
+    return this.visits === 0 ? 0.5 : this.valueSum / this.visits;
+  }
+}
+
+// Cheap terminal check (only "CH captured"). Checkmate/stalemate needs full legal-move
+// generation, which is deferred (see mctsEnsureLegalMoves) to avoid paying its cost for
+// every expanded leaf — most leaves are visited only once in a wide-branching position.
+function mctsQuickTerminalCheck(node) {
+  const chSelf = findCH(node.board, node.side);
+  const oppSide = node.side === "w" ? "b" : "w";
+  const chOpp = findCH(node.board, oppSide);
+  if (!chSelf) node.terminal = { value: 0 };
+  else if (!chOpp) node.terminal = { value: 1 };
+}
+
+function mctsEnsureLegalMoves(node) {
+  if (node.legalMoves) return node.legalMoves;
+  if (node.terminal !== null) { node.legalMoves = []; return node.legalMoves; }
+  const moves = getAllLegalMoves(node.board, node.side);
+  moves.sort((a, b) => (b.captured ? 1 : 0) - (a.captured ? 1 : 0));
+  node.legalMoves = moves;
+  if (moves.length === 0) {
+    const state = getGameState(node.board);
+    const inCheckNow = isInCheck(node.board, node.side, state);
+    node.terminal = { value: inCheckNow ? 0 : 0.5 };
+  }
+  return moves;
+}
+
+function mctsUcbSelect(node, c) {
+  let best = null, bestScore = -Infinity;
+  const logN = Math.log(node.visits + 1);
+  for (const child of node.children) {
+    const valueForParent = 1 - child.avgValue;
+    const u = c * Math.sqrt(logN / (child.visits + 1));
+    const score = valueForParent + u;
+    if (score > bestScore) { bestScore = score; best = child; }
+  }
+  return best;
+}
+
+function mctsBackup(node, valueForNodeSide) {
+  let v = valueForNodeSide;
+  let cur = node;
+  while (cur !== null) {
+    cur.visits++;
+    cur.valueSum += v;
+    v = 1 - v;
+    cur = cur.parent;
+  }
+}
+
+function mctsSearch(rootBoard, rootSide, weights, timeBudgetMs, cUct) {
+  const root = new MCTSNode(rootBoard, rootSide, null, null);
+  mctsQuickTerminalCheck(root);
+  mctsEnsureLegalMoves(root); // root always needs full legal moves immediately
+  const deadline = Date.now() + timeBudgetMs;
+  let sims = 0;
+  while (Date.now() < deadline) {
+    let node = root;
+    // 1. Selection: descend while fully expanded, computing legal moves lazily on demand
+    while (true) {
+      if (node.terminal !== null) break;
+      if (node.legalMoves === null) mctsEnsureLegalMoves(node);
+      if (node.terminal !== null) break;
+      if (node.children.length < node.legalMoves.length) break;
+      if (node.children.length === 0) break;
+      node = mctsUcbSelect(node, cUct);
+    }
+    if (node.terminal !== null) {
+      mctsBackup(node, node.terminal.value);
+      sims++;
+      continue;
+    }
+    if (node.legalMoves.length === 0) { mctsBackup(node, 0.5); sims++; continue; }
+    // 2. Expansion
+    const mv = node.legalMoves[node.expandedIdx++];
+    const nb = resultingBoard(node.board, mv);
+    const nextSide = node.side === "w" ? "b" : "w";
+    const child = new MCTSNode(nb, nextSide, node, mv);
+    node.children.push(child);
+    mctsQuickTerminalCheck(child); // cheap only; full legal-move gen deferred until revisited
+    // 3. Evaluation (leaf)
+    let childValueForMover;
+    if (child.terminal !== null) {
+      childValueForMover = child.terminal.value;
+    } else {
+      const wpWhite = mctsWinProbWhite(nb, weights);
+      childValueForMover = child.side === "w" ? wpWhite : 1 - wpWhite;
+    }
+    mctsBackup(child, childValueForMover);
+    sims++;
+  }
+  return root;
+}
+
+function mctsChooseMove(board, side, timeBudgetMs) {
+  const root = mctsSearch(board, side, MCTS_WEIGHTS, timeBudgetMs, 1.4);
+  let best = null, bestVal = -Infinity;
+  for (const child of root.children) {
+    const v = 1 - child.avgValue;
+    if (v > bestVal) { bestVal = v; best = child; }
+  }
+  return best ? best.moveFromParent : null;
+}
+
+const COCHIENTHUAT = {
+  SIZE, COLS, PIECE_INFO, getTerrain, label, parseLabel,
+  createInitialBoard, getGameState, pseudoLegalMoves, applyMoveBoard, applyCastleBoard, resultingBoard,
+  findCH, isSquareAttacked, isInCheck, getAllLegalMoves, canCastle, promotionRow, promotionChoices,
+  evaluate, chooseAIMove, mctsChooseMove, mctsSearch, MCTS_WEIGHTS, mctsWinProbWhite,
+};
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = COCHIENTHUAT;
+}
+
+
+(function () {
+  const G = COCHIENTHUAT;
+  const SIZE = G.SIZE;
+
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  function playMoveSound(kind) {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    const freq = kind === "capture" ? 620 : 900;
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.55, now + 0.045);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "capture" ? 0.09 : 0.055));
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
+  const boardEl = document.getElementById("board");
+  const colLabelsEl = document.getElementById("col-labels");
+  const rowLabelsEl = document.getElementById("row-labels");
+  const statusLineEl = document.getElementById("status-line");
+  const turnTextEl = document.getElementById("turn-text");
+  const turnSwatchEl = document.getElementById("turn-swatch");
+  const checkBannerEl = document.getElementById("check-banner");
+  const overBannerEl = document.getElementById("over-banner");
+  const capBEl = document.getElementById("captured-b");
+  const capWEl = document.getElementById("captured-w");
+  const moveLogEl = document.getElementById("move-log");
+  const rulesBodyEl = document.getElementById("rules-body");
+  const newGameBtn = document.getElementById("new-game-btn");
+  const undoBtn = document.getElementById("undo-btn");
+  const zonesToggle = document.getElementById("zones-toggle");
+  const modeToggle = document.getElementById("mode-toggle");
+  const diffRow = document.getElementById("diff-row");
+
+  // ====== ONLINE (FIREBASE) ======
+  const onlinePanel = document.getElementById("online-panel");
+  const onlineSetupEl = document.getElementById("online-setup");
+  const onlineConnectedEl = document.getElementById("online-connected");
+  const createRoomBtn = document.getElementById("create-room-btn");
+  const joinCodeInput = document.getElementById("join-code-input");
+  const joinRoomBtn = document.getElementById("join-room-btn");
+  const roomCodeTextEl = document.getElementById("room-code-text");
+  const copyRoomBtn = document.getElementById("copy-room-btn");
+  const onlineRoleLineEl = document.getElementById("online-role-line");
+  const onlineStatusLineEl = document.getElementById("online-status-line");
+  const leaveRoomBtn = document.getElementById("leave-room-btn");
+
+  // THAY CÁC GIÁ TRỊ DƯỚI ĐÂY BẰNG THÔNG TIN DỰ ÁN FIREBASE CỦA BẠN
+  // (Firebase Console → Project settings → General → Your apps → SDK setup and configuration)
+  const firebaseConfig = {
+    apiKey: "AIzaSyBj-vEN7MfMWPn_J2I3ETKFiivoABwH9_8",
+    authDomain: "co-chien-thuat.firebaseapp.com",
+    databaseURL: "https://co-chien-thuat-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "co-chien-thuat",
+  };
+
+  let fbDb = null;
+  try {
+    if (firebaseConfig.apiKey !== "YOUR_API_KEY" && window.firebase) {
+      firebase.initializeApp(firebaseConfig);
+      fbDb = firebase.database();
+    }
+  } catch (err) {
+    console.warn("Không khởi tạo được Firebase:", err);
+    fbDb = null;
+  }
+
+  let onlineRoomCode = null;
+  let onlineRole = null; // "w" | "b" | "spectator"
+  const onlineClientId = Math.random().toString(36).slice(2) + "_" + Date.now().toString(36);
+  let onlineStateRef = null, onlinePlayersRef = null;
+  let onlineStateListener = null, onlinePlayersListener = null;
+  let applyingRemoteState = false;
+
+  function genRoomCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let s = "";
+    for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return s;
+  }
+
+  function serializeGameSnapshot() {
+    return {
+      board: state.board,
+      ep: state.board.ep || null,
+      turn: state.turn,
+      capturedW: state.capturedW,
+      capturedB: state.capturedB,
+      log: state.log,
+      lastMove: state.lastMove,
+      gameOver: state.gameOver,
+      winner: state.winner,
+      overReason: state.overReason,
+      seq: (state.onlineSeq || 0) + 1,
+    };
+  }
+
+  function applyRemoteSnapshot(snap) {
+    if (!snap || !snap.board) return;
+    applyingRemoteState = true;
+    const board = snap.board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
+    board.ep = snap.ep || null;
+    state.board = board;
+    state.turn = snap.turn;
+    state.capturedW = snap.capturedW || [];
+    state.capturedB = snap.capturedB || [];
+    state.log = snap.log || [];
+    state.lastMove = snap.lastMove || null;
+    state.gameOver = !!snap.gameOver;
+    state.winner = snap.winner || null;
+    state.overReason = snap.overReason || null;
+    state.onlineSeq = snap.seq || 0;
+    state.selected = null;
+    state.legalForSelected = [];
+    state.aiThinking = false;
+    render();
+    applyingRemoteState = false;
+  }
+
+  function pushOnlineState() {
+    if (!fbDb || !onlineRoomCode) return;
+    fbDb.ref("rooms/" + onlineRoomCode + "/state").set(serializeGameSnapshot());
+  }
+
+  function enterRoomUI() {
+    onlineSetupEl.classList.add("hidden");
+    onlineConnectedEl.classList.remove("hidden");
+    roomCodeTextEl.textContent = onlineRoomCode;
+    onlineRoleLineEl.textContent = "Bạn là: " + (
+      onlineRole === "w" ? "Trắng" : onlineRole === "b" ? "Đen" : "Khán giả (chỉ xem)"
+    );
+    render();
+  }
+
+  function updateOnlineStatusUI(players) {
+    players = players || {};
+    if (players.w && players.b) {
+      onlineStatusLineEl.textContent = "Đã đủ 2 người chơi — có thể có thêm khán giả xem cùng.";
+    } else {
+      onlineStatusLineEl.textContent = "Đang chờ đối thủ… gửi mã phòng \"" + onlineRoomCode + "\" cho bạn bè.";
+    }
+  }
+
+  function subscribeToRoom() {
+    if (!fbDb || !onlineRoomCode) return;
+    onlineStateRef = fbDb.ref("rooms/" + onlineRoomCode + "/state");
+    onlineStateListener = onlineStateRef.on("value", (snap) => {
+      if (!snap.exists()) return;
+      applyRemoteSnapshot(snap.val());
+    });
+    onlinePlayersRef = fbDb.ref("rooms/" + onlineRoomCode + "/players");
+    onlinePlayersListener = onlinePlayersRef.on("value", (snap) => {
+      updateOnlineStatusUI(snap.val());
+    });
+  }
+
+  function createRoom() {
+    if (!fbDb) { alert("Chưa cấu hình Firebase cho trang này. Xem hướng dẫn đi kèm để điền firebaseConfig."); return; }
+    onlineRoomCode = genRoomCode();
+    onlineRole = "w";
+    state = newGameState("online", state.difficulty);
+    const roomRef = fbDb.ref("rooms/" + onlineRoomCode);
+    roomRef.set({
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+      players: { w: onlineClientId },
+      state: serializeGameSnapshot(),
+    });
+    fbDb.ref("rooms/" + onlineRoomCode + "/players/w").onDisconnect().remove();
+    enterRoomUI();
+    subscribeToRoom();
+  }
+
+  function joinRoom(rawCode) {
+    if (!fbDb) { alert("Chưa cấu hình Firebase cho trang này. Xem hướng dẫn đi kèm để điền firebaseConfig."); return; }
+    const code = (rawCode || "").trim().toUpperCase();
+    if (!code) return;
+    const playersRef = fbDb.ref("rooms/" + code + "/players");
+    playersRef.transaction((cur) => {
+      cur = cur || {};
+      if (!cur.w) { cur.w = onlineClientId; return cur; }
+      if (!cur.b && cur.w !== onlineClientId) { cur.b = onlineClientId; return cur; }
+      return cur;
+    }, (error, committed, snapshot) => {
+      if (error) { alert("Không thể vào phòng: " + error.message); return; }
+      const val = (snapshot && snapshot.val()) || {};
+      if (val.w === onlineClientId) onlineRole = "w";
+      else if (val.b === onlineClientId) onlineRole = "b";
+      else onlineRole = "spectator";
+      fbDb.ref("rooms/" + code + "/state").once("value", (stSnap) => {
+        if (!stSnap.exists()) {
+          alert("Không tìm thấy phòng " + code + ". Kiểm tra lại mã phòng.");
+          return;
+        }
+        onlineRoomCode = code;
+        state = newGameState("online", state.difficulty);
+        applyRemoteSnapshot(stSnap.val());
+        if (onlineRole !== "spectator") {
+          fbDb.ref("rooms/" + code + "/players/" + onlineRole).onDisconnect().remove();
+        }
+        enterRoomUI();
+        subscribeToRoom();
+      });
+    });
+  }
+
+  function leaveRoom() {
+    if (onlineStateRef && onlineStateListener) onlineStateRef.off("value", onlineStateListener);
+    if (onlinePlayersRef && onlinePlayersListener) onlinePlayersRef.off("value", onlinePlayersListener);
+    if (onlineRoomCode && onlineRole && onlineRole !== "spectator" && fbDb) {
+      fbDb.ref("rooms/" + onlineRoomCode + "/players/" + onlineRole).remove();
+    }
+    onlineRoomCode = null;
+    onlineRole = null;
+    onlineStateRef = null;
+    onlinePlayersRef = null;
+    onlineStateListener = null;
+    onlinePlayersListener = null;
+    onlineSetupEl.classList.remove("hidden");
+    onlineConnectedEl.classList.add("hidden");
+    joinCodeInput.value = "";
+  }
+
+  createRoomBtn.addEventListener("click", createRoom);
+  joinRoomBtn.addEventListener("click", () => joinRoom(joinCodeInput.value));
+  joinCodeInput.addEventListener("keydown", (e) => { if (e.key === "Enter") joinRoom(joinCodeInput.value); });
+  leaveRoomBtn.addEventListener("click", () => { leaveRoom(); resetGame(); });
+  copyRoomBtn.addEventListener("click", () => {
+    if (onlineRoomCode && navigator.clipboard) navigator.clipboard.writeText(onlineRoomCode);
+  });
+
+  let state;
+  let cachedState = null;
+
+  function newGameState(mode, difficulty) {
+    return {
+      board: G.createInitialBoard(),
+      turn: "w",
+      mode: mode || "pvp",
+      difficulty: difficulty || "medium",
+      selected: null,
+      legalForSelected: [],
+      history: [],
+      capturedW: [],
+      capturedB: [],
+      log: [],
+      lastMove: null,
+      gameOver: false,
+      winner: null,
+      overReason: null,
+      aiThinking: false,
+      onlineSeq: 0,
+    };
+  }
+
+  function cloneBoard(board) {
+    const nb = board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
+    nb.ep = board.ep || null;
+    return nb;
+  }
+
+  function labelOf(r, c) { return G.label(r, c); }
+  function pieceIconSvg(type) { return '<svg class="icon"><use href="#icon-' + type + '"></use></svg>'; }
+
+  function pushHistory() {
+    state.history.push({
+      board: cloneBoard(state.board),
+      turn: state.turn,
+      capturedW: state.capturedW.slice(),
+      capturedB: state.capturedB.slice(),
+      log: state.log.slice(),
+      lastMove: state.lastMove,
+    });
+  }
+
+  function undo() {
+    if (state.aiThinking || state.history.length === 0) return;
+    let steps = state.mode === "ai" && state.history.length >= 2 ? 2 : 1;
+    for (let i = 0; i < steps && state.history.length > 0; i++) {
+      const prev = state.history.pop();
+      state.board = prev.board;
+      state.turn = prev.turn;
+      state.capturedW = prev.capturedW;
+      state.capturedB = prev.capturedB;
+      state.log = prev.log;
+      state.lastMove = prev.lastMove;
+    }
+    state.selected = null;
+    state.legalForSelected = [];
+    state.gameOver = false;
+    state.winner = null;
+    state.overReason = null;
+    render();
+  }
+
+  function applyMove(from, to, extra) {
+    extra = extra || {};
+    pushHistory();
+    const movingPiece = state.board[from.r][from.c];
+    const capturedPiece = extra.castle ? null : (extra.captured !== undefined ? extra.captured : state.board[to.r][to.c]);
+    playMoveSound(capturedPiece ? "capture" : "move");
+    if (extra.castle) {
+      state.board = G.applyCastleBoard(state.board, extra.castle);
+    } else {
+      state.board = G.applyMoveBoard(state.board, from, to, extra.promote);
+    }
+    if (capturedPiece) {
+      if (capturedPiece.side === "w") state.capturedW.push(capturedPiece.type);
+      else state.capturedB.push(capturedPiece.type);
+    }
+    const sideName = movingPiece.side === "w" ? "Trắng" : "Đen";
+    let logStr;
+    if (extra.castle) {
+      logStr = (state.log.length + 1) + ". " + sideName + " Nhập thành " +
+        labelOf(from.r, from.c) + "\u2192" + labelOf(to.r, to.c);
+    } else {
+      logStr =
+        (state.log.length + 1) + ". " + sideName + " " + movingPiece.type + " " +
+        labelOf(from.r, from.c) + "\u2192" + labelOf(to.r, to.c) +
+        (capturedPiece ? " (ăn " + capturedPiece.type + (extra.enPassant ? " qua đường" : "") + ")" : "") +
+        (extra.promote ? " (phong " + extra.promote + ")" : "");
+    }
+    state.log.push(logStr);
+    state.lastMove = { from: { r: from.r, c: from.c }, to: { r: to.r, c: to.c } };
+    state.turn = state.turn === "w" ? "b" : "w";
+  }
+
+  function checkGameOver() {
+    const st = G.getGameState(state.board);
+    const chW = G.findCH(state.board, "w");
+    const chB = G.findCH(state.board, "b");
+    if (!chW) { state.gameOver = true; state.winner = "b"; state.overReason = "capture"; return; }
+    if (!chB) { state.gameOver = true; state.winner = "w"; state.overReason = "capture"; return; }
+    const legal = G.getAllLegalMoves(state.board, state.turn);
+    if (legal.length === 0) {
+      state.gameOver = true;
+      const inCheck = G.isInCheck(state.board, state.turn, st);
+      if (inCheck) {
+        state.winner = state.turn === "w" ? "b" : "w";
+        state.overReason = "checkmate";
+      } else {
+        state.winner = null;
+        state.overReason = "stalemate";
+      }
+    }
+  }
+
+  function maybeScheduleAI() {
+    if (!state.gameOver && state.mode === "ai" && state.turn === "b") {
+      state.aiThinking = true;
+      render();
+      setTimeout(runAIMove, 80);
+    }
+  }
+
+  function runAIMove() {
+    const depthMap = { easy: 1, medium: 2 };
+    const budgetMap = { easy: 700, medium: 1800, hard: 3000 };
+    const mv = state.difficulty === "hard"
+      ? G.mctsChooseMove(state.board, "b", budgetMap.hard)
+      : G.chooseAIMove(state.board, "b", depthMap[state.difficulty], budgetMap[state.difficulty]);
+    state.aiThinking = false;
+    if (!mv) { checkGameOver(); render(); return; }
+    applyMove(mv.from, mv.to, { promote: mv.promote, castle: mv.castle, captured: mv.captured, enPassant: mv.enPassant });
+    checkGameOver();
+    render();
+  }
+
+  function onCellClick(e) {
+    if (state.gameOver || state.aiThinking) return;
+    if (state.mode === "ai" && state.turn !== "w") return;
+    if (state.mode === "online" && (!onlineRoomCode || onlineRole === "spectator" || onlineRole !== state.turn)) return;
+    const r = parseInt(e.currentTarget.dataset.r, 10);
+    const c = parseInt(e.currentTarget.dataset.c, 10);
+    const piece = state.board[r][c];
+
+    const matches = state.legalForSelected.filter((m) => m.to.r === r && m.to.c === c);
+    if (state.selected && matches.length > 0) {
+      const fromSel = state.selected;
+      state.selected = null;
+      state.legalForSelected = [];
+      render();
+      if (matches.length === 1) {
+        completeMove(fromSel, matches[0]);
+      } else {
+        showPromotionPicker(matches, (chosen) => completeMove(fromSel, chosen));
+      }
+      return;
+    }
+    if (piece && piece.side === state.turn) {
+      state.selected = { r, c };
+      state.legalForSelected = G.getAllLegalMoves(state.board, state.turn)
+        .filter((m) => m.from.r === r && m.from.c === c);
+      render();
+      return;
+    }
+    state.selected = null;
+    state.legalForSelected = [];
+    render();
+  }
+
+  function completeMove(from, mv) {
+    applyMove(from, mv.to, { promote: mv.promote, castle: mv.castle, captured: mv.captured, enPassant: mv.enPassant });
+    checkGameOver();
+    render();
+    maybeScheduleAI();
+    if (state.mode === "online") pushOnlineState();
+  }
+
+  function showPromotionPicker(matches, onPick) {
+    const overlay = document.getElementById("promo-overlay");
+    const choicesEl = document.getElementById("promo-choices");
+    choicesEl.innerHTML = "";
+    matches.forEach((m) => {
+      const btn = document.createElement("button");
+      btn.className = "promo-choice";
+      btn.innerHTML = pieceIconSvg(m.promote);
+      btn.title = G.PIECE_INFO[m.promote].name;
+      btn.addEventListener("click", () => {
+        overlay.classList.add("hidden");
+        onPick(m);
+      });
+      choicesEl.appendChild(btn);
+    });
+    overlay.classList.remove("hidden");
+  }
+
+  function isInEnemyPKZoneColForSide(c, side) {
+    const opp = side === "w" ? "b" : "w";
+    for (const pkCol of cachedState.pkColsBySide[opp]) {
+      if (Math.abs(pkCol - c) <= 1) return true;
+    }
+    return false;
+  }
+
+  function renderColRowLabels() {
+    colLabelsEl.innerHTML = "";
+    for (let c = 0; c < SIZE; c++) {
+      const span = document.createElement("span");
+      span.textContent = G.COLS[c];
+      colLabelsEl.appendChild(span);
+    }
+    rowLabelsEl.innerHTML = "";
+    for (let r = 0; r < SIZE; r++) {
+      const span = document.createElement("span");
+      span.textContent = String(r + 1);
+      rowLabelsEl.appendChild(span);
+    }
+  }
+
+  function render() {
+    cachedState = G.getGameState(state.board);
+    renderBoard();
+    renderSidebar();
+  }
+
+  function renderBoard() {
+    const inCheckW = G.isInCheck(state.board, "w", cachedState);
+    const inCheckB = G.isInCheck(state.board, "b", cachedState);
+    const chW = G.findCH(state.board, "w");
+    const chB = G.findCH(state.board, "b");
+    const showZones = zonesToggle.checked;
+
+    boardEl.innerHTML = "";
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.classList.add((r + c) % 2 === 0 ? "cell-light" : "cell-dark");
+        if (G.getTerrain(r, c) === "water") cell.classList.add("water");
+        cell.dataset.r = String(r);
+        cell.dataset.c = String(c);
+
+        if (state.selected && state.selected.r === r && state.selected.c === c) {
+          cell.classList.add("selected");
+        }
+        const hint = state.legalForSelected.find((m) => m.to.r === r && m.to.c === c);
+        if (hint) {
+          cell.classList.add("move-hint");
+          if (state.board[r][c]) cell.classList.add("has-capture");
+        }
+        if ((inCheckW && chW && chW.r === r && chW.c === c) || (inCheckB && chB && chB.r === r && chB.c === c)) {
+          cell.classList.add("in-check");
+        }
+        if (state.lastMove && ((state.lastMove.from.r === r && state.lastMove.from.c === c) || (state.lastMove.to.r === r && state.lastMove.to.c === c))) {
+          cell.classList.add("last-move");
+        }
+        const selectedPieceForZone = state.selected ? state.board[state.selected.r][state.selected.c] : null;
+        const selectedTKZoneSide = (selectedPieceForZone && selectedPieceForZone.type === "TK") ? selectedPieceForZone.side : null;
+        if (selectedTKZoneSide && isInEnemyPKZoneColForSide(c, selectedTKZoneSide)) {
+          cell.classList.add("zone-tint");
+        }
+
+        ["tl", "tr", "bl", "br"].forEach((pos) => {
+          const d = document.createElement("div");
+          d.className = "corner " + pos;
+          cell.appendChild(d);
+        });
+
+        const piece = state.board[r][c];
+        if (piece) {
+          const pieceEl = document.createElement("div");
+          pieceEl.className = "piece side-" + piece.side;
+          if (piece.type === "CH") pieceEl.classList.add("ch-piece");
+          const key = r + "_" + c;
+          let titleParts = [G.PIECE_INFO[piece.type].name];
+          if (showZones && cachedState.paralyzed.has(key)) {
+            pieceEl.classList.add("stunned");
+            titleParts.push("Đang bị choáng bởi Tàu chiến địch - không thể di chuyển");
+          }
+          if (piece.type === "TK" && state.selected && state.selected.r === r && state.selected.c === c && isInEnemyPKZoneColForSide(c, piece.side)) {
+            pieceEl.classList.add("restricted");
+            titleParts.push("Bị Phòng không địch khống chế - chỉ đi được 1 ô");
+          }
+          pieceEl.title = titleParts.join(" — ");
+          pieceEl.innerHTML = pieceIconSvg(piece.type);
+          cell.appendChild(pieceEl);
+        }
+
+        const dot = document.createElement("div");
+        dot.className = "move-dot";
+        cell.appendChild(dot);
+
+        const onlineCanAct = state.mode === "online" && !!onlineRoomCode && onlineRole === state.turn;
+        const humanTurnOk = !state.gameOver && !state.aiThinking &&
+          (state.mode === "pvp" || (state.mode === "ai" && state.turn === "w") || onlineCanAct);
+        if (humanTurnOk && ((piece && piece.side === state.turn) || hint)) {
+          cell.classList.add("selectable");
+        }
+        cell.addEventListener("click", onCellClick);
+        boardEl.appendChild(cell);
+      }
+    }
+  }
+
+  function renderCapturedList(container, list, side) {
+    container.innerHTML = "";
+    if (list.length === 0) {
+      const span = document.createElement("span");
+      span.style.color = "var(--text-faint)";
+      span.style.fontSize = "12px";
+      span.textContent = "—";
+      container.appendChild(span);
+      return;
+    }
+    list.forEach((type) => {
+      const chip = document.createElement("div");
+      chip.className = "cap-chip side-" + side;
+      chip.title = G.PIECE_INFO[type].name;
+      chip.innerHTML = pieceIconSvg(type);
+      container.appendChild(chip);
+    });
+  }
+
+  function renderLog() {
+    moveLogEl.innerHTML = "";
+    state.log.forEach((entry) => {
+      const li = document.createElement("li");
+      li.textContent = entry;
+      moveLogEl.appendChild(li);
+    });
+  }
+
+  function renderSidebar() {
+    turnSwatchEl.className = "turn-swatch " + state.turn;
+    turnTextEl.textContent = "Lượt: " + (state.turn === "w" ? "Trắng" : "Đen") + (state.aiThinking ? " (máy đang tính toán…)" : "");
+
+    const inCheck = !state.gameOver && G.isInCheck(state.board, state.turn, cachedState);
+    if (inCheck) {
+      checkBannerEl.classList.add("show");
+      checkBannerEl.textContent = (state.turn === "w" ? "Trắng" : "Đen") + " đang bị chiếu tướng!";
+    } else {
+      checkBannerEl.classList.remove("show");
+    }
+
+    if (state.gameOver) {
+      overBannerEl.classList.add("show");
+      if (state.overReason === "stalemate") {
+        overBannerEl.textContent = "Hòa cờ — bên đi không còn nước hợp lệ.";
+      } else {
+        const winnerName = state.winner === "w" ? "Trắng" : "Đen";
+        overBannerEl.textContent = winnerName + " thắng" + (state.overReason === "checkmate" ? " (chiếu bí)!" : "!");
+      }
+    } else {
+      overBannerEl.classList.remove("show");
+    }
+
+    renderCapturedList(capBEl, state.capturedB, "b");
+    renderCapturedList(capWEl, state.capturedW, "w");
+    renderLog();
+
+    undoBtn.disabled = state.history.length === 0 || state.aiThinking || state.mode === "online";
+    statusLineEl.textContent = state.selected
+      ? "Đã chọn " + labelOf(state.selected.r, state.selected.c) + " — chọn ô sáng để đi, hoặc chọn quân khác."
+      : (state.mode === "online" && onlineRole === "spectator")
+        ? "Bạn đang xem với vai trò khán giả."
+        : (state.mode === "online" && onlineRoomCode && onlineRole !== state.turn)
+          ? "Đang chờ đối thủ đi..."
+          : "Chọn một quân của bên đang đi để xem nước đi hợp lệ.";
+  }
+
+  function renderRulesBody() {
+    const items = [
+      ["CH", "Đi 1 ô theo 8 hướng (ngang/dọc/chéo). Bị ăn là thua ngay."],
+      ["TK", "Bay ngang/dọc không giới hạn, bay xuyên qua được đồng minh. Nếu đang đứng trong vùng khống chế của Phòng không địch (cột đứng ± 1 cột) thì chỉ còn bay được 1 ô."],
+      ["PK", "Đi và ăn quân theo đường chéo (dấu nhân), không giới hạn số ô, bị chặn bởi bất kỳ quân nào trên đường đi. Khống chế Tiêm kích địch trong phạm vi cột mình đứng và 2 cột liền kề."],
+      ["XT", "Đi ngang/dọc không giới hạn, bị chặn bởi bất kỳ quân nào trên đường đi. Không đi/ăn quân được trên ô Nước và không thể đứng lên quân Bộ binh. Nếu Bộ binh đồng minh đứng ở 1 trong 6 ô sông giữa (B6,C6,D6,H6,I6,J6), Xe tăng có thể bay qua ô đó (không dừng lại) để tiếp tục di chuyển — Bộ binh địch đứng ở đó không tạo cầu."],
+      ["TC", "Đi và ăn quân ngang/dọc tối đa 2 ô. Không lên được ô Đất. Gây choáng (không thể di chuyển) cho quân địch đầu tiên gặp phải theo mỗi hướng ngang/dọc — trừ Tiêm kích, Hải quân, Tàu chiến (miễn nhiễm, và che chắn hiệu ứng cho quân phía sau). Hiệu lực mất ngay khi Tàu chiến di chuyển hoặc bị ăn."],
+      ["DN", "Đi và ăn quân theo đường chéo không giới hạn, bị chặn bởi bất kỳ quân nào trên đường đi."],
+      ["BB", "Tiến thẳng 1 ô (2 ô nếu là nước đi đầu tiên của quân đó), không được ăn quân khi tiến thẳng. Ăn quân 1 ô theo đường chéo phía trước, kể cả bắt qua đường (en passant) nếu đối phương vừa đi 2 ô ngang hàng. Phong cấp khi tới hàng cuối cùng."],
+      ["HQ", "Đi và ăn quân theo hình chữ L như quân Mã cờ vua, không bị chặn đường đi. Khi đang đứng ở bất kỳ ô Nước nào, được đi/ăn quân thêm 1 ô theo ngang/dọc (dấu cộng)."],
+    ];
+    rulesBodyEl.innerHTML =
+      '<div style="margin-bottom:8px"><b>Mục tiêu:</b> ăn được Chỉ huy (CH) đối phương. Có luật chiếu tướng — không được đi nước khiến CH mình bị chiếu; hết nước thoát chiếu thì thua (chiếu bí).</div>' +
+      items.map(([type, desc]) =>
+        '<div class="rule-piece"><div class="rule-icon">' + pieceIconSvg(type) + "</div><div><b>" +
+        G.PIECE_INFO[type].name + " (" + type + "):</b> " + desc + "</div></div>"
+      ).join("") +
+      '<div style="margin-top:8px"><b>Địa hình:</b> viền trái/phải (cột A, K) và hàng giữa bàn cờ (trừ 3 ô giữa E-F-G) là Nước, còn lại là Đất.</div>';
+  }
+
+  function resetGame() {
+    const mode = state ? state.mode : "pvp";
+    const difficulty = state ? state.difficulty : "medium";
+    state = newGameState(mode, difficulty);
+    render();
+    if (mode === "online" && onlineRoomCode) {
+      pushOnlineState();
+    }
+  }
+
+  modeToggle.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (state.aiThinking) return;
+      modeToggle.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const newMode = btn.dataset.mode;
+      diffRow.classList.toggle("hidden", newMode !== "ai");
+      onlinePanel.classList.toggle("hidden", newMode !== "online");
+      if (state.mode === "online" && newMode !== "online" && onlineRoomCode) {
+        leaveRoom();
+      }
+      state.mode = newMode;
+      resetGame();
+    });
+  });
+
+  diffRow.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      diffRow.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.difficulty = btn.dataset.diff;
+    });
+  });
+
+  zonesToggle.addEventListener("change", render);
+  newGameBtn.addEventListener("click", resetGame);
+  undoBtn.addEventListener("click", undo);
+
+  renderColRowLabels();
+  renderRulesBody();
+  resetGame();
+})();
+
+</script>
+</body>
+</html>
