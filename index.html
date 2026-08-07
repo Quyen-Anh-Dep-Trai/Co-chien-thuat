@@ -1408,10 +1408,10 @@ if (typeof module !== "undefined" && module.exports) {
   // THAY CÁC GIÁ TRỊ DƯỚI ĐÂY BẰNG THÔNG TIN DỰ ÁN FIREBASE CỦA BẠN
   // (Firebase Console → Project settings → General → Your apps → SDK setup and configuration)
   const firebaseConfig = {
-    apiKey: "AIzaSyBj-vEN7MfMWPn_J2I3ETKFiivoABwH9_8",
-    authDomain: "co-chien-thuat.firebaseapp.com",
-    databaseURL: "https://co-chien-thuat-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "co-chien-thuat",
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "YOUR_PROJECT_ID",
   };
 
   let fbDb = null;
@@ -1439,9 +1439,35 @@ if (typeof module !== "undefined" && module.exports) {
     return s;
   }
 
+  // Firebase RTDB không lưu được `null` bên trong mảng (tự biến mảng thành object),
+  // nên cần thay ô trống bằng "_" trước khi gửi lên, và đổi ngược lại khi đọc về.
+  function boardToSafe(board) {
+    return board.map((row) => row.map((cell) => (cell ? cell : "_")));
+  }
+
+  function objToArray(x) {
+    if (Array.isArray(x)) return x;
+    if (x && typeof x === "object") {
+      const keys = Object.keys(x).map(Number).filter((n) => !isNaN(n));
+      const maxIdx = keys.length ? Math.max(...keys) : -1;
+      const arr = [];
+      for (let i = 0; i <= maxIdx; i++) arr.push(x[i] !== undefined ? x[i] : "_");
+      return arr;
+    }
+    return [];
+  }
+
+  function safeToBoard(rawBoard, ep) {
+    const rows = objToArray(rawBoard).map((row) =>
+      objToArray(row).map((cell) => (cell === "_" || cell === null || typeof cell !== "object") ? null : { ...cell })
+    );
+    rows.ep = ep || null;
+    return rows;
+  }
+
   function serializeGameSnapshot() {
     return {
-      board: state.board,
+      board: boardToSafe(state.board),
       ep: state.board.ep || null,
       turn: state.turn,
       capturedW: state.capturedW,
@@ -1458,8 +1484,7 @@ if (typeof module !== "undefined" && module.exports) {
   function applyRemoteSnapshot(snap) {
     if (!snap || !snap.board) return;
     applyingRemoteState = true;
-    const board = snap.board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
-    board.ep = snap.ep || null;
+    const board = safeToBoard(snap.board, snap.ep);
     state.board = board;
     state.turn = snap.turn;
     state.capturedW = snap.capturedW || [];
