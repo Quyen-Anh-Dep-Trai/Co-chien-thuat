@@ -1408,15 +1408,15 @@ if (typeof module !== "undefined" && module.exports) {
   // THAY CÁC GIÁ TRỊ DƯỚI ĐÂY BẰNG THÔNG TIN DỰ ÁN FIREBASE CỦA BẠN
   // (Firebase Console → Project settings → General → Your apps → SDK setup and configuration)
   const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "YOUR_PROJECT_ID",
+    apiKey: "AIzaSyBj-vEN7MfMWPn_J2I3ETKFiivoABwH9_8",
+    authDomain: "co-chien-thuat.firebaseapp.com",
+    databaseURL: "https://co-chien-thuat-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "co-chien-thuat",
   };
 
   let fbDb = null;
   try {
-    if (firebaseConfig.apiKey !== "YOUR_API_KEY" && window.firebase) {
+    if (firebaseConfig.apiKey !== "AIzaSyBj-vEN7MfMWPn_J2I3ETKFiivoABwH9_8" && window.firebase) {
       firebase.initializeApp(firebaseConfig);
       fbDb = firebase.database();
     }
